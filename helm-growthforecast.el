@@ -92,11 +92,13 @@
 
 (defun helm-growthforecast-transform-candidates (candidates)
   (loop for graph in candidates
-        collect (cons (helm-growthforecast-get-graph-name graph)
-                      (helm-growthforecast-make-path graph))))
+        for display = (helm-growthforecast-get-graph-name graph)
+        for real = (concat display " - " (helm-growthforecast-make-path graph))
+        collect (cons display real)))
 
 (defun helm-growthforecast-create-image (buffer)
   (let ((bin (with-current-buffer buffer (buffer-string))))
+    (kill-buffer buffer)
     (create-image (substring bin (+ (string-match "\n\n" bin) 2)) 'png t)))
 
 (defun helm-growthforecast-render-graph (buffer image)
@@ -128,8 +130,7 @@
    (with-current-buffer buffer helm-growthforecast-graph-url)
    (lambda (status buffer)
      (let ((image (helm-growthforecast-create-image (current-buffer))))
-       (helm-growthforecast-render-graph buffer image)
-       (kill-buffer)))
+       (helm-growthforecast-render-graph buffer image)))
    `(,buffer)))
 
 (defun helm-growthforecast-timer-action ()
@@ -143,13 +144,13 @@
     (helm-growthforecast-stop-timer)))
 
 (defun helm-growthforecast-action (candidate)
-  (let* ((url (concat helm-growthforecast-url "/graph/" candidate))
-         (image-buffer (url-retrieve-synchronously url))
-         (image (helm-growthforecast-create-image image-buffer))
+  (let* ((pair (split-string candidate " - "))
+         (url (concat helm-growthforecast-url "/graph/" (cadr pair)))
+         (image (helm-growthforecast-create-image
+                 (url-retrieve-synchronously url)))
          (buffer (get-buffer-create
-                  (concat helm-growthforecast-buffer-prefix candidate))))
+                  (concat helm-growthforecast-buffer-prefix (car pair)))))
     (helm-growthforecast-render-graph buffer image)
-    (kill-buffer image-buffer)
     (with-current-buffer buffer
       (setq helm-growthforecast-graph-url url))
     (unless helm-growthforecast-timer
