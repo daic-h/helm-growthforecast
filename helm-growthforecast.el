@@ -7,19 +7,17 @@
 (defvar helm-growthforecast-url "")
 
 (defvar helm-growthforecast-cache-file "~/.helm-growthforecast.cache")
-(defvar helm-growthforecast-buffer-prefix "HelmGrowthforecast/")
+(defvar helm-growthforecast-buffer-prefix "HelmGrowthForecast/")
 
 (defvar helm-growthforecast-graph-buffer-list nil)
+
+(defvar helm-growthforecast-graph-url nil)
 
 (defvar helm-growthforecast-timer nil)
 (defvar helm-growthforecast-timer-interval 60)
 
 (defvar helm-growthforecast-graph-params '(("t" . "d")))
 (defvar helm-growthforecast-complex-params '(("t" . "d")))
-
-(defvar helm-growthforecast-actions
-  '(("Select Graph" . helm-growthforecast-action)
-    ("Update Graph List" . helm-growthforecast-action:update-graph-list)))
 
 (defun helm-growthforecast-cache-file-retrieve ()
   (let ((buffer (url-retrieve-synchronously
@@ -56,7 +54,7 @@
   (let ((service-name (cdr (assq 'service_name graph)))
         (section-name (cdr (assq 'section_name graph)))
         (graph-name   (cdr (assq 'graph_name graph))))
-    (format "%s.%s.%s" service-name service-name graph-name)))
+    (format "%s.%s.%s" service-name section-name graph-name)))
 
 (defun helm-growthforecast-query-string (params &optional alist)
   (and alist (add-to-list 'params alist))
@@ -126,19 +124,13 @@
     (setq helm-growthforecast-timer nil)))
 
 (defun helm-growthforecast-async-update (buffer)
-  (let ((path (with-current-buffer buffer
-                (substring (buffer-name)
-                           (length helm-growthforecast-buffer-prefix)))))
-    (url-retrieve
-     (concat helm-growthforecast-url "/graph/"
-             (with-current-buffer buffer
-               (substring (buffer-name)
-                          (length helm-growthforecast-buffer-prefix))))
-     (lambda (status buffer)
-       (let ((image (helm-growthforecast-create-image (current-buffer))))
-         (helm-growthforecast-render-graph buffer image)
-         (kill-buffer)))
-     `(,buffer))))
+  (url-retrieve
+   (with-current-buffer buffer helm-growthforecast-graph-url)
+   (lambda (status buffer)
+     (let ((image (helm-growthforecast-create-image (current-buffer))))
+       (helm-growthforecast-render-graph buffer image)
+       (kill-buffer)))
+   `(,buffer)))
 
 (defun helm-growthforecast-timer-action ()
   (loop for buffer in helm-growthforecast-graph-buffer-list
@@ -150,14 +142,16 @@
   (unless helm-growthforecast-graph-buffer-list
     (helm-growthforecast-stop-timer)))
 
-(defun helm-growthforecast-action (path)
-  (let* ((buffer (get-buffer-create
-                  (concat helm-growthforecast-buffer-prefix path)))
-         (image-buffer (url-retrieve-synchronously
-                        (concat helm-growthforecast-url "/graph/" path)))
-         (image (helm-growthforecast-create-image image-buffer)))
+(defun helm-growthforecast-action (candidate)
+  (let* ((url (concat helm-growthforecast-url "/graph/" candidate))
+         (image-buffer (url-retrieve-synchronously url))
+         (image (helm-growthforecast-create-image image-buffer))
+         (buffer (get-buffer-create
+                  (concat helm-growthforecast-buffer-prefix candidate))))
     (helm-growthforecast-render-graph buffer image)
     (kill-buffer image-buffer)
+    (with-current-buffer buffer
+      (setq helm-growthforecast-graph-url url))
     (unless helm-growthforecast-timer
       (helm-growthforecast-start-timer))
     (switch-to-buffer buffer)))
@@ -165,6 +159,10 @@
 (defun helm-growthforecast-action:update-graph-list (path)
   (helm-growthforecast-clear-cache-file)
   (helm-growthforecast-cache-file-retrieve))
+
+(defvar helm-growthforecast-actions
+  '(("Select Graph" . helm-growthforecast-action)
+    ("Update Graph List" . helm-growthforecast-action:update-graph-list)))
 
 (defun helm-growthforecast-sources ()
   (loop for data in (helm-growthforecast-read-graph-data)
@@ -178,20 +176,20 @@
   (interactive)
   (helm :sources (helm-growthforecast-sources)))
 
-
 ;;
 ;; Major-mode definition
 ;;
-
-(define-derived-mode helm-growthforecast-mode nil
-  "Helm-Growthforecast"
-  "Major mode for Helm Growthforecast.")
 
 (defvar helm-growthforecast-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "r") 'helm-growthforecast-mode-async-update-current-buffer)
     (define-key map (kbd "q") 'helm-growthforecast-mode-quit)
     map))
+
+(define-derived-mode helm-growthforecast-mode nil
+  "Helm-Growthforecast"
+  "Major mode for Helm Growthforecast."
+  (make-local-variable 'helm-growthforecast-graph-url))
 
 (defun helm-growthforecast-mode-async-update-current-buffer ()
   (interactive)
