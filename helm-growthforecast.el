@@ -4,14 +4,16 @@
 (require 'helm-utils)
 (require 'json)
 
-(defvar helm-growthforecast-url "")
+(defvar helm-growthforecast-url nil)
+
+(defvar helm-growthforecast-graph-url nil)
+(make-variable-buffer-local 'helm-growthforecast-graph-url)
 
 (defvar helm-growthforecast-cache-file "~/.helm-growthforecast.cache")
+
 (defvar helm-growthforecast-buffer-prefix "HelmGrowthForecast/")
 
 (defvar helm-growthforecast-graph-buffer-list nil)
-
-(defvar helm-growthforecast-graph-url nil)
 
 (defvar helm-growthforecast-timer nil)
 (defvar helm-growthforecast-timer-interval 60)
@@ -109,10 +111,9 @@
       (insert-image image)
       (insert "\n")
       (insert (format-time-string "Last update: %Y/%m/%d %H:%M:%S" (current-time)))
-      (setq buffer-read-only t)
       (unless (eq major-mode 'helm-growthforecast-mode)
-        (helm-growthforecast-mode))))
-  (add-to-list 'helm-growthforecast-graph-buffer-list buffer t))
+        (helm-growthforecast-mode))
+      (setq buffer-read-only t))))
 
 (defun helm-growthforecast-start-timer ()
   (setq helm-growthforecast-timer
@@ -155,6 +156,7 @@
       (setq helm-growthforecast-graph-url url))
     (unless helm-growthforecast-timer
       (helm-growthforecast-start-timer))
+    (add-to-list 'helm-growthforecast-graph-buffer-list buffer t)
     (switch-to-buffer buffer)))
 
 (defun helm-growthforecast-action:update-graph-list (path)
@@ -178,27 +180,19 @@
   (helm :sources (helm-growthforecast-sources)))
 
 ;;
-;; Major-mode definition
+;; Minor-mode definition
 ;;
 
-(defvar helm-growthforecast-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "r") 'helm-growthforecast-mode-async-update-current-buffer)
-    (define-key map (kbd "q") 'helm-growthforecast-mode-quit)
-    map))
-
-(define-derived-mode helm-growthforecast-mode nil
-  "Helm-Growthforecast"
-  "Major mode for Helm Growthforecast."
-  (make-local-variable 'helm-growthforecast-graph-url))
-
-(defun helm-growthforecast-mode-async-update-current-buffer ()
-  (interactive)
-  (helm-growthforecast-async-update (current-buffer)))
-
-(defun helm-growthforecast-mode-quit ()
-  (interactive)
-  (when (y-or-n-p "Really quit? ")
-    (kill-buffer (current-buffer))))
+(easy-mmode-define-minor-mode helm-growthforecast-mode
+ "Minor mode for Helm Growthforecast."
+ nil
+ " HelmGF"
+ '(("r" . (lambda ()
+            (interactive)
+            (helm-growthforecast-async-update (current-buffer))))
+   ("q" . (lambda ()
+            (interactive)
+            (when (y-or-n-p "Really quit? ")
+              (kill-buffer (current-buffer)))))))
 
 (provide 'helm-growthforecast)
