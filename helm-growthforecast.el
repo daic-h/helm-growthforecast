@@ -194,6 +194,7 @@
                   (candidates . ,candidates)
                   (action . ,helm-growthforecast-actions))))
 
+;;;###autoload
 (defun helm-growthforecast ()
   (interactive)
   (helm :sources (helm-growthforecast-sources)))
